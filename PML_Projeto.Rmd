@@ -1,0 +1,112 @@
+---
+title: "Practical Machine Learning Project"
+author: "Riva Malheiros"
+date: "27 de dezembro de 2015"
+output: html_document
+---
+
+##Background
+
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+<p>In this project we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set.
+
+##Data Processing
+###Load data
+
+The training data for this project are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>
+
+The test data are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+```{r}
+library(utils)
+fileurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+download.file(fileurl, destfile = "pml-training.csv")
+fileurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(fileurl, destfile = "pml-testing.csv")
+
+trainset <- read.csv("pml-training.csv", header=TRUE, sep=",", na.strings=c("NA",""))
+testset <- read.csv("pml-testing.csv", header=TRUE, sep=",", na.strings=c("NA",""))
+```
+
+###Clean up data
+
+We need remove the ID column (X)
+
+```{r}
+trainData <- subset(trainset, TRUE, select = -X) 
+testData <- subset(testset, TRUE, select = -X) 
+```
+
+The columns where most of the data are "NA´s" are removed from the dataset
+
+```{r}
+remain <- colSums(!is.na(trainData[,-ncol(trainData)]))/nrow(trainData) >= 0.75
+trainData <- trainData[, remain] 
+testData <- testData[, remain] 
+```
+
+#Training & Validation dataset
+
+```{r}
+library(caret)
+
+partition = createDataPartition(y=trainData$classe, p=0.75, list=FALSE)
+training = trainData[partition,]
+validation = trainData[-partition,]
+```
+
+##Model
+
+We Will choose a model that provides accuracy greater than 95%
+
+###Train RandomForest model
+
+```{r}
+# load the library
+library(randomForest)
+
+set.seed(7) 
+modelForest <- randomForest(classe~.,data=training)
+```
+
+###Validation: RandomForest model
+
+Time to use our model in validation data
+
+```{r}
+prediz <- predict(modelForest,subset(validation, TRUE, select = -classe))
+
+confusionMatrix(prediz,validation$classe)
+```
+
+The confusion matrix output shows:
+
+*Accuracy is 99.9 %
+*Sensitivity in all classes above 99.7%
+*Positive Pred Value and Negative Pred Value in all classes above 99,9%
+
+When increasing the number of trees reduces the error of the sample but above 200 trees the error stabilizes as we can see in next plot
+
+```{r}
+plot(modelForest, log ="y", lwd = 2, main = "Random forest accuracy")
+```
+
+#Predict Test set with the RandomForest Model
+
+When we use the validation data we find the model is able to predict closely the outcome (99.9%). Now we will use the test data to verify if this model holds the good results.
+
+```{r}
+# Coerce testing dataset to same class and strucuture of training dataset 
+testData <- rbind(training[100, -ncol(training)] , testData[, -ncol(testData)]) 
+row.names(testData) <- c(100, 1:20)
+
+# Predict
+predTest <- predict(modelForest,newdata=testData[-1,])
+print(predTest)
+```
+
